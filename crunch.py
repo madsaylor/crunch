@@ -7,15 +7,11 @@ from pprint import pformat
 import csv
 
 requests.packages.urllib3.disable_warnings() 
-key = 'cdfb4d4c28799913e7e0288035f65014'
-url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'.format(key)
+url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'
 
 
 url_people_start = 'https://api.crunchbase.com/v/3/'
-url_people_end = '?user_key={}'.format(key)
-
-#Test url 
-url_test_people = 'https://api.crunchbase.com/v/3/persons/david-goldweitz?user_key={}'.format(key)
+url_people_end = '?user_key={}'
 
 possible_series = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 list_properties = ['permalink','api_path','web_path','name','also_known_as','short_description','description', 'primary_role', 'role_company',
@@ -94,13 +90,13 @@ def getCompanyforPeople(url_people):
         return {}
 
 
-def processPage(i, writercsv):
-    people_response = reqWithRetry(url_query + '&page=' + str(i+1))
+def processPage(i, writercsv, key):
+    people_response = reqWithRetry(url_query.format(key) + '&page=' + str(i+1))
     people_list = people_response["data"]["items"]
     i = 0
     for person in people_list:
         permalink = person['properties']['api_path']
-        url_people = url_people_start + permalink + url_people_end
+        url_people = url_people_start + permalink + url_people_end.format(key)
         company_list = getCompanyforPeople(url_people)
 
         i += 1
@@ -194,7 +190,7 @@ def writeCompany(company, writercsv):
     dict_to_write = dict((key,value) for key, value in company['properties'].iteritems() if key in list_properties)
     writercsv.writerow(parDict(dict_to_write))
 
-def main_crunch(start_idx, end_idx, filename):    
+def main_crunch(start_idx, end_idx, filename, key):    
     with open(filename, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=list_properties)
         writer.writeheader()
@@ -203,4 +199,4 @@ def main_crunch(start_idx, end_idx, filename):
         with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=list_properties)
             print 'page : {} of {}'.format(str(i+1), end_idx)
-            processPage(0, writer)
+            processPage(0, writer, key)
