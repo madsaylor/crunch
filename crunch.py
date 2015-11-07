@@ -9,7 +9,7 @@ import csv
 requests.packages.urllib3.disable_warnings() 
 url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'
 
-
+wrong_people_file = 'wrong_people.txt'
 url_people_start = 'https://api.crunchbase.com/v/3/'
 url_people_end = '?user_key={}'
 
@@ -87,40 +87,48 @@ def getCompanyforPeople(url_people):
         return properties
 
     else:
+        with open(wrong_people_file, 'a') as f:
+            # print resp_people['data']['properties']['permalink']
+            f.write(u'{}\n'.format(resp_people['data']['properties']['permalink'].encode('ascii', 'replace')))
         return {}
 
 
 def processPage(i, writercsv, key):
     people_response = reqWithRetry(url_query.format(key) + '&page=' + str(i+1))
     people_list = people_response["data"]["items"]
-    i = 0
+    j = 0
     for person in people_list:
-        permalink = person['properties']['api_path']
-        url_people = url_people_start + permalink + url_people_end.format(key)
-        company_list = getCompanyforPeople(url_people)
+        wrong_people = None
+        with open(wrong_people_file, 'r') as f:
+            wrong_people = [s.strip() for s in f.readlines()];
 
-        i += 1
-        person_name = u'{} of {}: {} {}'.format(
-            i,
-            len(people_list),
-            person['properties']['first_name'], 
-            person['properties']['last_name']
-        )
-        if len(company_list) != 0:
-            print 'Founder match : {}'.format(person_name)
-            if debug:
-                print url_people
+        if person['properties']['permalink'] not in wrong_people:
+            permalink = person['properties']['api_path']
+            url_people = url_people_start + permalink + url_people_end.format(key)
+            company_list = getCompanyforPeople(url_people)
 
-            # print prop
-            for company in company_list:
-                writeCompany(company, writercsv)
+            j += 1
+            person_name = u'{} of {}: {} {}'.format(
+                j,
+                len(people_list),
+                person['properties']['first_name'], 
+                person['properties']['last_name']
+            )
+            if len(company_list) != 0:
+                print 'Founder match : {}'.format(person_name)
+                if debug:
+                    print url_people
 
+                # print prop
+                for company in company_list:
+                    writeCompany(company, writercsv, key)
+
+            else:
+                print u'Founder {} not matched the condition'.format(person_name)
         else:
-            print u'Founder {} not matched the condition'.format(person_name)
+            print u'* Founder {} already checked *'.format(person['properties']['permalink'])
 
-def writeCompany(company, writercsv):    
-    print pformat(company)
-
+def writeCompany(company, writercsv, key):
     org_permalink = company['properties']['permalink']
     
     url_founders = 'https://api.crunchbase.com/v/3/organizations/{}/founders?user_key={}'
@@ -189,6 +197,7 @@ def writeCompany(company, writercsv):
 
     dict_to_write = dict((key,value) for key, value in company['properties'].iteritems() if key in list_properties)
     writercsv.writerow(parDict(dict_to_write))
+    print 'Company {} written ro thet CSV file'.format(company['properties']['name'])
 
 def main_crunch(start_idx, end_idx, filename, key):    
     with open(filename, 'w') as f:
@@ -199,4 +208,4 @@ def main_crunch(start_idx, end_idx, filename, key):
         with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=list_properties)
             print 'page : {} of {}'.format(str(i+1), end_idx)
-            processPage(0, writer, key)
+            processPage(i, writer, key)

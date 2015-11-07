@@ -7,7 +7,7 @@ import os
 import json
 import sys
 
-if len(sys.argv) > 1:    
+if len(sys.argv) > 1:
     key = sys.argv[1]
     url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'.format(key)
 
@@ -25,7 +25,7 @@ if len(sys.argv) > 1:
 
     print 'nb_pages : ' + str(nb_pages)
 
-    start = 0
+    start = 38
     main_crunch(start, nb_pages, 'company' + str(start) + '.csv', key)
 else:
     print 'Please provide API key, like this: "python main.py 93423ddshjksf8w4f"'
