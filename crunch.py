@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 import requests
 import json
-import time
+from pprint import pformat
 
 import csv
 
-key = ''
+requests.packages.urllib3.disable_warnings() 
+key = 'cdfb4d4c28799913e7e0288035f65014'
 url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'.format(key)
 
 
@@ -16,174 +17,190 @@ url_people_end = '?user_key={}'.format(key)
 #Test url 
 url_test_people = 'https://api.crunchbase.com/v/3/persons/david-goldweitz?user_key={}'.format(key)
 
-
+possible_series = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 list_properties = ['permalink','api_path','web_path','name','also_known_as','short_description','description', 'primary_role', 'role_company',
 'role_investor','role_group','role_school','founded_on','founded_on_trust_code','is_closed','closed_on',
 'closed_on_trust_code','num_employees_min','num_employees_max','stock_exchange','stock_symbol','total_funding_usd',
-'number_of_investments','homepage_url','created_at','updated_at']
+'number_of_investments','homepage_url','created_at','updated_at', 'founders', 'seed_rounds']
 
-sep  ='|'
+list_properties += ['venture_round_{}'.format(series) for series in possible_series]
+
+sep = '|'
 timer = 0.1
 debug = True
 
+
 def parDict(item):
+    res = {}
+    for key, value in item.iteritems():
+        #print type(value)
+        if type(value) == unicode:
+            res[key] = value.encode('ascii', 'replace')
+        else:
+            res[key] = value
 
-	res= {}
-	
-	for key, value in item.iteritems():
-	
-		#print type(value)
-		if type(value) == unicode :
-			
-			res[key]= value.encode('ascii', 'replace') 
-			
-		else:
-			res[key]= value
-
-	return res
+    return res
 
 
 def reqWithRetry(url):
 
-	success = False
-	max_rety = 5
-	data = {}
-	while not success and max_rety > 0:
-		try:
-			r = requests.get(url)
-			if r.status_code == 200:
-				data = r.json()
-				success = True
-			else:
-				print 'req error : ' + url
-				print r.status_code, r.text
-				max_rety = max_rety - 1
-		except:
-			print 'Error retry lef : ', str(max_rety)
-			max_rety = max_rety - 1
+    success = False
+    max_rety = 5
+    data = {}
+    while not success and max_rety > 0:
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                data = r.json()
+                success = True
+            else:
+                print 'req error : ' + url
+                print r.status_code, r.text
+                max_rety = max_rety - 1
+        except:
+            print 'Error retry lef : ', str(max_rety)
+            max_rety = max_rety - 1
 
-	#time.sleep( timer )
-	return data
-
+    #time.sleep( timer )
+    return data
 
 
 def testDegree(degree_items):
+    try:
+        for degree_item in degree_items:
 
-	try:
-		for degree_item in degree_items:
+            school = degree_item['relationships']['school']['properties']['permalink']
+            if school == 'columbia-business-school':
+                return True
 
-			school = degree_item['relationships']['school']['properties']['permalink']
-			if school == 'columbia-business-school':
-				return True
+        return False
 
-		return False
-
-	except Exception, e:
-		print 'error object'
-		return False
-	
+    except Exception, e:
+        print 'error object'
+        return False
+    
 def getCompanyforPeople(url_people):
+    resp_people =  reqWithRetry(url_people)
+    if len(resp_people) == 0:
+        return {}
 
-	line = ''
+    degree_items = resp_people['data']['relationships']['degrees']['items']
 
-	resp_people =  reqWithRetry(url_people)
-	if len(resp_people) == 0 :
-		return line
+    if testDegree(degree_items):
+        properties = resp_people['data']['relationships']['founded_companies']['items']
+        return properties
 
-	degree_items = resp_people['data']['relationships']['degrees']['items']
-
-	if testDegree(degree_items):
-		
-		properties = resp_people['data']['relationships']['primary_affiliation']['item']['relationships']['organization']['properties']	
-
-		for propertie in list_properties:
-			
-			val =  properties[propertie]
-			if val is not None:
-				#print val
-				if type(val) == bool:
-					if val:
-						line = line + 'true'+sep
-					else:
-						line = line + 'false'+sep
-				elif type(val) == int:
-					line = line +str(properties[propertie])+sep
-				else:
-					line = line + properties[propertie]+sep
-			else:
-				#print 'null'
-				line = line +sep
-		
-		line = line + json.dumps(properties)
-
-	return line
-
-def getCompanyforPeople2(url_people):
-
-	resp_people =  reqWithRetry(url_people)
-	if len(resp_people) == 0 :
-		return {}	
-
-	degree_items = resp_people['data']['relationships']['degrees']['items']
-
-	if testDegree(degree_items):
-		
-		properties = resp_people['data']['relationships']['founded_companies']['items']
-		return properties
-
-	else:
-		return {}	
+    else:
+        return {}
 
 
-def testPage(i, writercsv):
+def processPage(i, writercsv):
+    people_response = reqWithRetry(url_query + '&page=' + str(i+1))
+    people_list = people_response["data"]["items"]
+    i = 0
+    for person in people_list:
+        permalink = person['properties']['api_path']
+        url_people = url_people_start + permalink + url_people_end
+        company_list = getCompanyforPeople(url_people)
 
-	resp =  reqWithRetry(url_query+'&page='+str(i+1))
+        i += 1
+        person_name = u'{} of {}: {} {}'.format(
+            i,
+            len(people_list),
+            person['properties']['first_name'], 
+            person['properties']['last_name']
+        )
+        if len(company_list) != 0:
+            print 'Founder match : {}'.format(person_name)
+            if debug:
+                print url_people
 
-	items = resp["data"]["items"]
+            # print prop
+            for company in company_list:
+                writeCompany(company, writercsv)
 
-	for item in items:
+        else:
+            print u'Founder {} not matched the condition'.format(person_name)
 
-		permalink = item['properties']['api_path']
+def writeCompany(company, writercsv):    
+    print pformat(company)
 
-		url_people = url_people_start+permalink+url_people_end
+    org_permalink = company['properties']['permalink']
+    
+    url_founders = 'https://api.crunchbase.com/v/3/organizations/{}/founders?user_key={}'
+    url_rounds = 'https://api.crunchbase.com/v/3/organizations/{}/funding_rounds?user_key={}'
+    founders_api_response = reqWithRetry(url_founders.format(org_permalink, key))
+    rounds_api_response = reqWithRetry(url_rounds.format(org_permalink, key))
+    
+    founders, rounds = [], []
+    if 'data' not in founders_api_response:
+        pass
+    elif 'items' in founders_api_response['data']:
+        founders = founders_api_response['data']['items']
+    elif 'item' in founders_api_response['data']:
+        founders.append(founders_api_response['data']['item'])
 
-		prop = getCompanyforPeople2(url_people)
+    if 'data' not in rounds_api_response:
+        pass
+    elif 'items' in rounds_api_response['data']:
+        rounds = rounds_api_response['data']['items']
+    elif 'item' in rounds_api_response['data']:
+        rounds.append(rounds_api_response['data']['item'])
 
-		if len(prop) != 0:
-			print 'Company match : ' + item['properties']['organization_permalink']
+    if len(founders) > 0:
+        company['properties']['founders'] = ', '.join([
+            '{} {}'.format(f['properties']['first_name'], f['properties']['last_name']) for f in founders
+        ])
 
-			if debug :
-				print url_people
-
-			print prop
-			for item in prop:
-				writercsv.writerow(parDict(item['properties']))
-
-				#writercsv.writerow(item['properties'])
-
-
-
-		#line = getCompanyforPeople(url_people)
-
-	#	if len(line) != 0:
-	#		print 'Company match : ' + item['properties']['organization_permalink']
-	#		file.write(line+'\n')
-
-
-def main_crunch(start_idx, end_idx, filename):
-	
-	with open(filename, 'w') as file:
-			
-		fieldnames = list_properties
-		writer = csv.DictWriter(file, fieldnames=list_properties)
-
-		writer.writeheader()
-
-		for i in range(start_idx, end_idx+1):
-
-			print 'page : ' + str(i+1)
-			testPage(i, writer)
-				
+    if len(rounds) > 0:
+        seed_rounds = [i for i in rounds if i['properties']['funding_type'] == 'seed']
+        venture_rounds = [i for i in rounds if i['properties']['funding_type'] == 'venture']
+    else:
+        seed_rounds, venture_rounds = [], []
 
 
+    seed_rounds_strings = []
+    for r in seed_rounds:        
+        money = r['properties']['money_raised_usd']
+        if money is None:
+            money = 'Not Specified'
+        else:
+            money = '${:,}'.format(int(money)).replace(',','\'')
 
+        seed_rounds_strings.append(
+            u'{} ({})'.format(
+                money,
+                r['properties']['announced_on'].split('-')[0]
+            )
+        )
+
+    company['properties']['seed_rounds'] = ', '.join(seed_rounds_strings)
+
+    for venture_round in venture_rounds:
+        series = venture_round['properties']['series']        
+        if series in possible_series:
+            column_name = 'venture_round_{}'.format(series)
+            money = venture_round['properties']['money_raised_usd']
+            if money is None:
+                money = 'Not Specified'
+            else:
+                money = '${:,}'.format(int(money)).replace(',','\'')
+
+            company['properties'][column_name] = '{} ({})'.format(
+                money,
+                venture_round['properties']['announced_on'].split('-')[0]
+            )
+
+    dict_to_write = dict((key,value) for key, value in company['properties'].iteritems() if key in list_properties)
+    writercsv.writerow(parDict(dict_to_write))
+
+def main_crunch(start_idx, end_idx, filename):    
+    with open(filename, 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=list_properties)
+        writer.writeheader()
+
+    for i in range(start_idx, end_idx):   
+        with open(filename, 'a') as f:
+            writer = csv.DictWriter(f, fieldnames=list_properties)
+            print 'page : {} of {}'.format(str(i+1), end_idx)
+            processPage(0, writer)
