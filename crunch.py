@@ -99,11 +99,10 @@ def processPage(i, writercsv, key):
             company_list = getCompanyforPeople(url_people)
 
             j += 1
-            person_name = u'{} of {}: {} {}'.format(
+            person_name = u'{} of {}: {}'.format(
                 j,
                 len(people_list),
-                person['properties']['first_name'], 
-                person['properties']['last_name']
+                person['properties']['permalink'],                 
             )
             if len(company_list) != 0:
                 print(u'Founder match : {}'.format(person_name))
