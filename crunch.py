@@ -3,6 +3,7 @@
 import requests
 import json
 from pprint import pformat
+import os
 
 import csv
 
@@ -16,7 +17,7 @@ possible_series = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 list_properties = ['permalink','api_path','web_path','name','also_known_as','short_description','description', 'primary_role', 'role_company',
 'role_investor','role_group','role_school','founded_on','founded_on_trust_code','is_closed','closed_on',
 'closed_on_trust_code','num_employees_min','num_employees_max','stock_exchange','stock_symbol','total_funding_usd',
-'number_of_investments','homepage_url','created_at','updated_at', 'founders', 'seed_rounds']
+'number_of_investments','homepage_url','created_at','updated_at', 'founders', 'seed_rounds', 'undisclosed_type_rounds']
 
 list_properties += ['venture_round_{}'.format(series) for series in possible_series]
 
@@ -74,7 +75,10 @@ def getCompanyforPeople(url_people):
         return properties
 
     else:
-        with open(wrong_people_file, 'a') as f:
+        file_mode = 'a'
+        if not os.path.exists(wrong_people_file):
+            file_mode = 'w'        
+        with open(wrong_people_file, file_mode) as f:
             # print(resp_people['data']['properties']['permalink'])
             f.write(u'{}\n'.format(resp_people['data']['properties']['permalink']))
         return {}
@@ -115,6 +119,23 @@ def processPage(i, writercsv, key):
         else:
             print(u'* Founder {} already checked *'.format(person['properties']['permalink']))
 
+def getRoundsAsString(rounds):
+    round_strings = []
+    for r in rounds:
+        money = r['properties']['money_raised_usd']
+        if money is None:
+            money = 'Not Specified'
+        else:
+            money = '${:,}'.format(int(money)).replace(',','\'')
+
+        round_strings.append(
+            u'{} ({})'.format(
+                money,
+                r['properties']['announced_on'].split('-')[0]
+            )
+        )
+    return ', '.join(round_strings)
+
 def writeCompany(company, writercsv, key):
     org_permalink = company['properties']['permalink']
     
@@ -146,31 +167,19 @@ def writeCompany(company, writercsv, key):
     if len(rounds) > 0:
         seed_rounds = [i for i in rounds if i['properties']['funding_type'] == 'seed']
         venture_rounds = [i for i in rounds if i['properties']['funding_type'] == 'venture']
+        undisclosed_type_rounds = [i for i in rounds if i['properties']['funding_type'] == 'undisclosed']
     else:
-        seed_rounds, venture_rounds = [], []
+        seed_rounds, venture_rounds, undisclosed_type_rounds = [], [], []
 
+    company['properties']['seed_rounds'] = getRoundsAsString(seed_rounds)
+    company['properties']['undisclosed_type_rounds'] = getRoundsAsString(undisclosed_type_rounds)
 
-    seed_rounds_strings = []
-    for r in seed_rounds:        
-        money = r['properties']['money_raised_usd']
-        if money is None:
-            money = 'Not Specified'
-        else:
-            money = '${:,}'.format(int(money)).replace(',','\'')
-
-        seed_rounds_strings.append(
-            u'{} ({})'.format(
-                money,
-                r['properties']['announced_on'].split('-')[0]
-            )
-        )
-
-    company['properties']['seed_rounds'] = ', '.join(seed_rounds_strings)
+    # print(pformat(venture_rounds))
 
     for venture_round in venture_rounds:
         series = venture_round['properties']['series']
-        if series in possible_series:
-            column_name = 'venture_round_{}'.format(series)
+        if series and series.upper() in possible_series:
+            column_name = 'venture_round_{}'.format(series.upper())
             money = venture_round['properties']['money_raised_usd']
             if money is None:
                 money = 'Not Specified'
@@ -196,7 +205,7 @@ def getCompany(org_permalink, key):
         'https://api.crunchbase.com/v/3/organizations/{}?user_key={}'.format(org_permalink, key)
     )
 
-def main_crunch(start_idx, end_idx, filename, key):    
+def main_crunch(start_idx, end_idx, filename, key):
     with open(filename, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=list_properties)
         writer.writeheader()

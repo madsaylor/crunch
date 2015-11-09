@@ -18,6 +18,7 @@ if len(sys.argv) > 1:
             f.write(r.text)
         print('File of {} bytes written'.format(os.path.getsize('people.json')))
     else:
+        print('Cached file opended')
         with open('people.json', 'r') as f:
             resp = json.loads(f.read())
 
