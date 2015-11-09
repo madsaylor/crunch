@@ -50,11 +50,11 @@ def reqWithRetry(url):
                 data = r.json()
                 success = True
             else:
-                print 'req error : ' + url
+                print u'req error : ' + url
                 print r.status_code, r.text
                 max_rety = max_rety - 1
         except:
-            print 'Error retry lef : ', str(max_rety)
+            print u'Error retry lef : ', str(max_rety)
             max_rety = max_rety - 1
 
     #time.sleep( timer )
@@ -72,7 +72,7 @@ def testDegree(degree_items):
         return False
 
     except Exception, e:
-        print 'error object'
+        print u'error object'
         return False
     
 def getCompanyforPeople(url_people):
@@ -115,7 +115,7 @@ def processPage(i, writercsv, key):
                 person['properties']['last_name']
             )
             if len(company_list) != 0:
-                print 'Founder match : {}'.format(person_name)
+                print u'Founder match : {}'.format(person_name.encode('ascii', 'replace'))
                 if debug:
                     print url_people
 
@@ -124,7 +124,7 @@ def processPage(i, writercsv, key):
                     writeCompany(company, writercsv, key)
 
             else:
-                print u'Founder {} not matched the condition'.format(person_name)
+                print u'Founder {} not matched the condition'.format(person_name.encode('ascii', 'replace'))
         else:
             print u'* Founder {} already checked *'.format(person['properties']['permalink'])
 
@@ -153,7 +153,7 @@ def writeCompany(company, writercsv, key):
 
     if len(founders) > 0:
         company['properties']['founders'] = ', '.join([
-            '{} {}'.format(f['properties']['first_name'], f['properties']['last_name']) for f in founders
+            u'{} {}'.format(f['properties']['first_name'], f['properties']['last_name']) for f in founders
         ])
 
     if len(rounds) > 0:
@@ -195,9 +195,14 @@ def writeCompany(company, writercsv, key):
                 venture_round['properties']['announced_on'].split('-')[0]
             )
 
+    print pformat(company)
+    also_known_as = company['properties']['also_known_as']
+    if also_known_as and isinstance(also_known_as, list):
+        company['properties']['also_known_as'] = u', '.join(also_known_as)
+
     dict_to_write = dict((key,value) for key, value in company['properties'].iteritems() if key in list_properties)
     writercsv.writerow(parDict(dict_to_write))
-    print 'Company {} written ro thet CSV file'.format(company['properties']['name'])
+    print u'Company {} written ro thet CSV file'.format(company['properties']['name'].encode('ascii', 'replace'))
 
 def main_crunch(start_idx, end_idx, filename, key):    
     with open(filename, 'w') as f:
@@ -207,5 +212,5 @@ def main_crunch(start_idx, end_idx, filename, key):
     for i in range(start_idx, end_idx):   
         with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=list_properties)
-            print 'page : {} of {}'.format(str(i+1), end_idx)
+            print u'page : {} of {}'.format(str(i+1), end_idx)
             processPage(i, writer, key)

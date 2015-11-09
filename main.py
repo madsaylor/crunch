@@ -25,7 +25,7 @@ if len(sys.argv) > 1:
 
     print 'nb_pages : ' + str(nb_pages)
 
-    start = 38
+    start = 292
     main_crunch(start, nb_pages, 'company' + str(start) + '.csv', key)
 else:
     print 'Please provide API key, like this: "python main.py 93423ddshjksf8w4f"'
