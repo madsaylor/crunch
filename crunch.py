@@ -6,7 +6,6 @@ from pprint import pformat
 
 import csv
 
-requests.packages.urllib3.disable_warnings() 
 url_query = 'https://api.crunchbase.com/v/3/people?query=founder&user_key={}'
 
 wrong_people_file = 'wrong_people.txt'
@@ -26,18 +25,6 @@ timer = 0.1
 debug = True
 
 
-def parDict(item):
-    res = {}
-    for key, value in item.iteritems():
-        #print type(value)
-        if type(value) == unicode:
-            res[key] = value.encode('ascii', 'replace')
-        else:
-            res[key] = value
-
-    return res
-
-
 def reqWithRetry(url):
 
     success = False
@@ -50,11 +37,11 @@ def reqWithRetry(url):
                 data = r.json()
                 success = True
             else:
-                print u'req error : ' + url
-                print r.status_code, r.text
+                print(u'req error : ' + url)
+                print(r.status_code, r.text)
                 max_rety = max_rety - 1
         except:
-            print u'Error retry lef : ', str(max_rety)
+            print(u'Error retry lef : ', str(max_rety))
             max_rety = max_rety - 1
 
     #time.sleep( timer )
@@ -71,8 +58,8 @@ def testDegree(degree_items):
 
         return False
 
-    except Exception, e:
-        print u'error object'
+    except Exception as e:
+        print(u'error object')
         return False
     
 def getCompanyforPeople(url_people):
@@ -88,8 +75,8 @@ def getCompanyforPeople(url_people):
 
     else:
         with open(wrong_people_file, 'a') as f:
-            # print resp_people['data']['properties']['permalink']
-            f.write(u'{}\n'.format(resp_people['data']['properties']['permalink'].encode('ascii', 'replace')))
+            # print(resp_people['data']['properties']['permalink'])
+            f.write(u'{}\n'.format(resp_people['data']['properties']['permalink']))
         return {}
 
 
@@ -115,18 +102,18 @@ def processPage(i, writercsv, key):
                 person['properties']['last_name']
             )
             if len(company_list) != 0:
-                print u'Founder match : {}'.format(person_name.encode('ascii', 'replace'))
+                print(u'Founder match : {}'.format(person_name))
                 if debug:
-                    print url_people
+                    print(url_people)
 
-                # print prop
+                # print(prop)
                 for company in company_list:
                     writeCompany(company, writercsv, key)
 
             else:
-                print u'Founder {} not matched the condition'.format(person_name.encode('ascii', 'replace'))
+                print(u'Founder {} not matched the condition'.format(person_name))
         else:
-            print u'* Founder {} already checked *'.format(person['properties']['permalink'])
+            print(u'* Founder {} already checked *'.format(person['properties']['permalink']))
 
 def writeCompany(company, writercsv, key):
     org_permalink = company['properties']['permalink']
@@ -181,7 +168,7 @@ def writeCompany(company, writercsv, key):
     company['properties']['seed_rounds'] = ', '.join(seed_rounds_strings)
 
     for venture_round in venture_rounds:
-        series = venture_round['properties']['series']        
+        series = venture_round['properties']['series']
         if series in possible_series:
             column_name = 'venture_round_{}'.format(series)
             money = venture_round['properties']['money_raised_usd']
@@ -195,22 +182,43 @@ def writeCompany(company, writercsv, key):
                 venture_round['properties']['announced_on'].split('-')[0]
             )
 
-    print pformat(company)
+    # print(pformat(company))
     also_known_as = company['properties']['also_known_as']
     if also_known_as and isinstance(also_known_as, list):
         company['properties']['also_known_as'] = u', '.join(also_known_as)
 
-    dict_to_write = dict((key,value) for key, value in company['properties'].iteritems() if key in list_properties)
-    writercsv.writerow(parDict(dict_to_write))
-    print u'Company {} written ro thet CSV file'.format(company['properties']['name'].encode('ascii', 'replace'))
+    dict_to_write = dict((key,value) for key, value in company['properties'].items() if key in list_properties)
+    writercsv.writerow(dict_to_write)
+    print(u'Company {} written to the CSV file'.format(company['properties']['name']))
+
+def getCompany(org_permalink, key):
+    return reqWithRetry(
+        'https://api.crunchbase.com/v/3/organizations/{}?user_key={}'.format(org_permalink, key)
+    )
 
 def main_crunch(start_idx, end_idx, filename, key):    
     with open(filename, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=list_properties)
         writer.writeheader()
 
-    for i in range(start_idx, end_idx):   
+    for i in range(start_idx, end_idx):
         with open(filename, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=list_properties)
-            print u'page : {} of {}'.format(str(i+1), end_idx)
+            print(u'page : {} of {}'.format(str(i+1), end_idx))
             processPage(i, writer, key)
+
+def easy_crunch(filename, key):
+    with open(filename, 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=list_properties)
+        writer.writeheader()
+
+    with open('companies.txt', 'r') as company_file:
+        org_list = [s.strip() for s in company_file.readlines()]
+        i = 0
+        for org_permalink in org_list:            
+            with open(filename, 'a') as f:
+                writer = csv.DictWriter(f, fieldnames=list_properties)
+                org = getCompany(org_permalink, key)
+                i += 1
+                print("{} of {}".format(i, len(org_list)))
+                writeCompany(org['data'], writer, key)

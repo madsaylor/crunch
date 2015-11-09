@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import requests
-from crunch import main_crunch
+from crunch import main_crunch, easy_crunch
 import os
 import json
 import sys
@@ -15,17 +15,18 @@ if len(sys.argv) > 1:
         r = requests.get(url_query)
         resp = r.json()
         with open('people.json', 'w') as f:
-            f.write(r.text.encode('utf-8'))
-        print 'File of {} bytes written'.format(os.path.getsize('people.json'))
+            f.write(r.text)
+        print('File of {} bytes written'.format(os.path.getsize('people.json')))
     else:
         with open('people.json', 'r') as f:
-            resp = json.loads(f.read().decode('utf-8'))
+            resp = json.loads(f.read())
 
     nb_pages = resp["data"]["paging"]['number_of_pages']
 
-    print 'nb_pages : ' + str(nb_pages)
+    print('nb_pages : ' + str(nb_pages))
 
-    start = 292
+    start = 0
     main_crunch(start, nb_pages, 'company' + str(start) + '.csv', key)
+    # easy_crunch('easy_crunch.csv', key)
 else:
-    print 'Please provide API key, like this: "python main.py 93423ddshjksf8w4f"'
+    print('Please provide API key, like this: "python main.py 93423ddshjksf8w4f"')
