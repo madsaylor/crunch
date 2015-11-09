@@ -90,8 +90,11 @@ def processPage(i, writercsv, key):
     j = 0
     for person in people_list:
         wrong_people = None
-        with open(wrong_people_file, 'r') as f:
-            wrong_people = [s.strip() for s in f.readlines()];
+        if os.path.exists(wrong_people_file):
+            with open(wrong_people_file, 'r') as f:
+                wrong_people = [s.strip() for s in f.readlines()];
+        else:
+            wrong_people = []
 
         if person['properties']['permalink'] not in wrong_people:
             permalink = person['properties']['api_path']
